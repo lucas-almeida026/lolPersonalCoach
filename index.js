@@ -1,4 +1,4 @@
-const apiKey = 'RGAPI-856b4b9c-201b-4833-9d19-82a8dc319e44'
+const apiKey = 'RGAPI-e6442da0-2466-4a66-9857-c059f87c5914'
 const summonerForm = document.getElementById('summonerForm')
 const warning = document.getElementById('warning')
 const dicChampioins = JSON.parse(G_championsJSON)
@@ -72,8 +72,40 @@ const getMatchStats = (matchInfo, user) => {
   // const kda = [playerInfo.stats.kills, playerInfo.stats.deaths, playerInfo.stats.assists]
   const champion = dicChampioins[playerInfo.championId]
   const win = playerInfo.stats.win
-  console.log(playerInfo)
-  return {champion, win}
+  const teammates = matchInfo.participants.filter(p => p.teamId == playerInfo.teamId)
+  const teamStats = teammates.reduce((acm, curr) => {
+    if(!Object.keys(acm).includes('damageToChampions')){
+      acm.damageToChampions = 0
+      acm.damageSelfMitigated = 0
+      acm.damageToObjectives = 0
+      acm.goldEarned = 0
+      acm.assists = 0
+    }
+    acm.damageToChampions += curr.stats.totalDamageDealtToChampions
+    acm.damageToObjectives += curr.stats.damageDealtToObjectives
+    acm.goldEarned += curr.stats.goldEarned
+    acm.assists += curr.stats.assists
+    acm.damageSelfMitigated += curr.stats.damageSelfMitigated
+    return acm
+  }, {})
+  // console.log('game presence:', Math.round(playerInfo.stats.assists / teamStats.assists * 100) + playerInfo.stats.kills)
+
+  const damageToChampions = Math.round(playerInfo.stats.totalDamageDealtToChampions / teamStats.damageToChampions * 100)
+  const damageDealtToObjectives = Math.round(playerInfo.stats.damageDealtToObjectives / teamStats.damageToObjectives * 100)
+  const damageSelfMitigated = Math.round(playerInfo.stats.damageSelfMitigated / teamStats.damageSelfMitigated * 100)
+  const mapPontuation = Math.round(((Math.round(playerInfo.stats.assists / teamStats.assists * 100) * 4) + (playerInfo.stats.kills * 1) + (damageDealtToObjectives * 4)) / 9)
+
+  inGameStats = {
+    damageToChampions,
+    damageDealtToObjectives,
+    damageSelfMitigated,
+    gold: Math.round(playerInfo.stats.goldEarned / teamStats.goldEarned * 100),
+    mapPontuation,
+    xpDeltas: playerInfo.timeline.xpDiffPerMinDeltas,
+    csDeltas: playerInfo.timeline.csDiffPerMinDeltas
+  }
+
+  return {champion, win, inGameStats}
 }
 
 summonerForm.addEventListener('submit', async e => {
@@ -87,10 +119,11 @@ summonerForm.addEventListener('submit', async e => {
   console.log('history')
 
   const champions = {}
-  const limit = 2
+  const limit = 4
   for(let i = 0; i < matchHistory.matches.length; i++){
     const matchInfo = await getMatchInfo(matchHistory.matches[i].gameId)
     const matchStats = getMatchStats(matchInfo, summoner)
+    console.log(matchStats)
     if(!Object.keys(champions).includes(matchStats.champion)){
       champions[matchStats.champion] = {matches: 1}
       champions[matchStats.champion].wins = 0
